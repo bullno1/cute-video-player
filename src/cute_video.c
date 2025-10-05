@@ -36,7 +36,7 @@ cute_video_load(plm_buffer_t* buffer, void* ctx) {
 	}
 
 	plm_buffer_write(buffer, read_buf, bytes_read);
-	if (cf_fs_eof(file).code) {
+	if (cf_fs_eof(file).code == 0) {
 		plm_buffer_signal_end(buffer);
 	}
 }
