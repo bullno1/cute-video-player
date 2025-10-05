@@ -3,6 +3,7 @@
 #include <cute_alloc.h>
 #include <cute_draw.h>
 #include "cute_video_shd.h"
+#include <SDL3/SDL_audio.h>
 
 #define CUTE_VIDEO_READ_SIZE 4096
 
@@ -14,6 +15,7 @@ struct cute_video_s {
 	int height;
 	CF_V2 uv_scale;
 	CF_Aabb box;
+	SDL_AudioStream* audio_stream;
 
 	CF_Texture tex_y;
 	CF_Texture tex_cr;
@@ -68,6 +70,13 @@ cute_video_on_video(plm_t* plm, plm_frame_t* frame, void* ctx) {
 	cf_texture_update(cv->tex_cb, frame->cb.data, frame->cb.width * frame->cb.height);
 }
 
+static void
+cute_video_on_audio(plm_t* plm, plm_samples_t* samples, void* ctx) {
+	cute_video_t* cv = ctx;
+	int size = sizeof(float) * samples->count * 2;
+	SDL_PutAudioStreamData(cv->audio_stream, samples->interleaved, size);
+}
+
 cute_video_t*
 cute_video_init(CF_File* source, cute_video_options_t* options) {
 	cute_video_options_t default_options = {
@@ -92,7 +101,26 @@ cute_video_init(CF_File* source, cute_video_options_t* options) {
 	}
 
 	plm_set_video_decode_callback(plm, cute_video_on_video, cv);
-	plm_set_audio_enabled(plm, false);
+
+	SDL_AudioStream* audio_stream = NULL;
+	if (options->audio_stream == -1) {
+		plm_set_audio_enabled(plm, false);
+	} else if (plm_get_num_audio_streams(plm) > 0) {
+		plm_set_audio_stream(plm, options->audio_stream);
+		plm_set_audio_decode_callback(plm, cute_video_on_audio, cv);
+		SDL_AudioSpec audio_spec = {
+			.channels = 2,
+			.format = SDL_AUDIO_F32,
+			.freq = plm_get_samplerate(plm),
+		};
+		audio_stream = SDL_OpenAudioDeviceStream(
+			SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+			&audio_spec,
+			NULL, NULL
+		);
+		plm_set_audio_lead_time(plm, (double)4096 / plm_get_samplerate(plm));
+		SDL_ResumeAudioStreamDevice(audio_stream);
+	}
 
 	// pl_mpeg does not expose this size calculation
 	// We want to create the textures upfront
@@ -111,6 +139,7 @@ cute_video_init(CF_File* source, cute_video_options_t* options) {
 	*cv = (cute_video_t){
 		.plm = plm,
 		.file = source,
+		.audio_stream = audio_stream,
 		.buffer = buffer,
 		.width = width,
 		.height = height,
@@ -136,6 +165,9 @@ cute_video_cleanup(cute_video_t* cv) {
 	cf_destroy_texture(cv->tex_y);
 	cf_destroy_texture(cv->tex_cr);
 	cf_destroy_texture(cv->tex_cb);
+	if (cv->audio_stream != 0) {
+		SDL_DestroyAudioStream(cv->audio_stream);
+	}
 	cf_free(cv);
 }
 
