@@ -16,6 +16,7 @@ main(int argc, const char* argv[]) {
 	int options = CF_APP_OPTIONS_WINDOW_POS_CENTERED_BIT;
 	cf_make_app("cute video player", 0, 0, 0, 640, 480, options, argv[0]);
 	cf_fs_mount(cf_fs_get_working_directory(), "/", true);
+	cf_app_set_vsync(true);
 
 	CF_File* file = cf_fs_open_file_for_read(argv[1]);
 	if (file == NULL) {
