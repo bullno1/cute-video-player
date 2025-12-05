@@ -41,6 +41,7 @@ else()
 	add_compile_options(
 		-Wall -Wextra -pedantic -Werror
 		-Wno-unused-parameter
+		-Wno-overlength-strings
 		-Wno-error=c23-extensions
 	)
 endif()
